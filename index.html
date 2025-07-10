@@ -147,7 +147,7 @@
 </main>
 
 <script>
-(() => {
+  (() => {
   // --- 定数・データ ---
   const PREFS = [
     {code: "hokkaido", name: "北海道"}, {code: "aomori", name: "青森県"}, {code: "iwate", name: "岩手県"},
@@ -260,4 +260,22 @@
       [advisorData, alertsData, radarData, observationData] = await Promise.all([
         fetchJSON(`advisor_${region}.json`),
         fetchJSON(`alerts.json`),
-        fetchJSON(`radarDirection.json`
+        fetchJSON(`radarDirection.json`),
+        fetchJSON(`observation_${region}.json`)
+      ]);
+      updateUI(region);
+    } catch (e) {
+      console.error(e);
+      advisorComment.textContent = "データ取得に失敗しました。";
+      alertList.innerHTML = '<li>データ取得に失敗しました。</li>';
+      radarDirection.textContent = "";
+    }
+  }
+
+  // JSON取得のラッパー
+  async function fetchJSON(url) {
+    const res = await fetch(BASE_URL + url);
+    if (!res.ok) throw new Error(`Failed to fetch ${url}`);
+    return await res.json();
+  }
+</script>
