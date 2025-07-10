@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>ClimaGuard - あなたの防災AIアシスタント</title>
+<style>
+  /* Reset & Basic */
+  * {
+    box-sizing: border-box;
+  }
+  body {
+    margin:0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: #f0f4f8; color: #222; line-height: 1.5;
+    display: flex; flex-direction: column; min-height: 100vh;
+  }
+  header {
+    background: #0366d6; color: white; padding: 1rem;
+    text-align: center; font-weight: bold; font-size: 1.5rem;
+  }
+  main {
+    flex: 1; max-width: 900px; margin: 1rem auto; padding: 0 1rem;
+    width: 100%;
+  }
+  section {
+    background: white; border-radius: 8px; box-shadow: 0 2px 6px rgb(0 0 0 / 0.1);
+    margin-bottom: 1.5rem; padding: 1rem 1.25rem;
+  }
+  h2, h3 {
+    margin-top: 0; color: #0366d6;
+  }
+  select, input, button {
+    font-size: 1rem; padding: 0.4rem 0.6rem; border-radius: 4px; border: 1px solid #ccc;
+  }
+  select {
+    min-width: 160px;
+  }
+  button {
+    background: #0366d6; color: white; border: none; cursor: pointer;
+    transition: background-color 0.2s ease;
+  }
+  button:hover {
+    background: #024ea2;
+  }
+  ul {
+    list-style: none; padding-left: 0; margin: 0.5rem 0;
+  }
+  ul li {
+    padding: 0.25rem 0; border-bottom: 1px solid #eee;
+    display: flex; align-items: center;
+  }
+  ul li:last-child {
+    border-bottom: none;
+  }
+  .alert-icon {
+    color: #e55353; margin-right: 0.5rem; font-weight: bold;
+  }
+  #radar img {
+    max-width: 100%; border-radius: 4px; margin-top: 0.5rem;
+    box-shadow: 0 2px 8px rgb(0 0 0 / 0.15);
+  }
+  #livecam iframe {
+    width: 100%; height: 220px; border: none; border-radius: 6px;
+  }
+  #observation canvas {
+    width: 100% !important; height: 180px !important;
+  }
+  /* Chat UI */
+  #chat-ai {
+    display: flex; flex-direction: column;
+  }
+  #chat-input {
+    flex: none; width: 100%; padding: 0.6rem; margin-bottom: 0.5rem;
+    border-radius: 4px; border: 1px solid #ccc;
+  }
+  #chat-send {
+    align-self: flex-end; padding: 0.5rem 1rem;
+    background-color: #0366d6; color: white; border: none; border-radius: 4px;
+    cursor: pointer;
+  }
+  #chat-send:hover {
+    background-color: #024ea2;
+  }
+  #ai-response {
+    margin-top: 0.75rem; padding: 0.75rem; background: #e6f0ff;
+    border-radius: 6px; min-height: 3rem; white-space: pre-wrap;
+  }
+
+  /* Responsive */
+  @media (max-width: 480px) {
+    header {
+      font-size: 1.25rem;
+    }
+    main {
+      padding: 0 0.5rem;
+    }
+  }
+</style>
+</head>
+<body>
+<header>
+  ClimaGuard - あなたの防災AIアシスタント
+</header>
+<main>
+  <section id="region-select-section">
+    <label for="region-select"><strong>地域を選択してください：</strong></label>
+    <select id="region-select" aria-label="地域選択">
+      <!-- 都道府県リストはJSで生成 -->
+    </select>
+  </section>
+
+  <section id="guardian">
+    <h2>🧠 今日の防災アドバイス</h2>
+    <p id="advisor-comment">読み込み中...</p>
+    <button id="speak-btn" aria-label="防災アドバイスを音声で読む">🔊 音声読み上げ</button>
+  </section>
+
+  <section id="alerts">
+    <h3>🚨 発表中の警報・注意報</h3>
+    <ul id="alert-list">
+      <li>読み込み中...</li>
+    </ul>
+  </section>
+
+  <section id="radar">
+    <h3>🌧️ 雨雲レーダーと進行方向</h3>
+    <img id="radar-img" alt="最新の雨雲レーダー画像" src="" />
+    <p id="radar-direction">読み込み中...</p>
+  </section>
+
+  <section id="livecam">
+    <h3>📺 ライブカメラ映像</h3>
+    <iframe id="livecam-iframe" title="ライブカメラ映像" src="" allowfullscreen></iframe>
+  </section>
+
+  <section id="observation">
+    <h3>📊 気象観測データ</h3>
+    <canvas id="chart-temp"></canvas>
+  </section>
+
+  <section id="chat-ai">
+    <h3>💬 ClimaGuardに相談する</h3>
+    <input type="text" id="chat-input" placeholder="例：傘いる？洗濯できる？" aria-label="AIへの質問入力" />
+    <button id="chat-send" aria-label="質問送信">送信</button>
+    <div id="ai-response" role="log" aria-live="polite"></div>
+  </section>
+</main>
+
+<script>
+(() => {
+  // --- 定数・データ ---
+  const PREFS = [
+    {code: "hokkaido", name: "北海道"}, {code: "aomori", name: "青森県"}, {code: "iwate", name: "岩手県"},
+    {code: "miyagi", name: "宮城県"}, {code: "akita", name: "秋田県"}, {code: "yamagata", name: "山形県"},
+    {code: "fukushima", name: "福島県"}, {code: "ibaraki", name: "茨城県"}, {code: "tochigi", name: "栃木県"},
+    {code: "gunma", name: "群馬県"}, {code: "saitama", name: "埼玉県"}, {code: "chiba", name: "千葉県"},
+    {code: "tokyo", name: "東京都"}, {code: "kanagawa", name: "神奈川県"}, {code: "niigata", name: "新潟県"},
+    {code: "toyama", name: "富山県"}, {code: "ishikawa", name: "石川県"}, {code: "fukui", name: "福井県"},
+    {code: "yamanashi", name: "山梨県"}, {code: "nagano", name: "長野県"}, {code: "gifu", name: "岐阜県"},
+    {code: "shizuoka", name: "静岡県"}, {code: "aichi", name: "愛知県"}, {code: "mie", name: "三重県"},
+    {code: "shiga", name: "滋賀県"}, {code: "kyoto", name: "京都府"}, {code: "osaka", name: "大阪府"},
+    {code: "hyogo", name: "兵庫県"}, {code: "nara", name: "奈良県"}, {code: "wakayama", name: "和歌山県"},
+    {code: "tottori", name: "鳥取県"}, {code: "shimane", name: "島根県"}, {code: "okayama", name: "岡山県"},
+    {code: "hiroshima", name: "広島県"}, {code: "yamaguchi", name: "山口県"}, {code: "tokushima", name: "徳島県"},
+    {code: "kagawa", name: "香川県"}, {code: "ehime", name: "愛媛県"}, {code: "kochi", name: "高知県"},
+    {code: "fukuoka", name: "福岡県"}, {code: "saga", name: "佐賀県"}, {code: "nagasaki", name: "長崎県"},
+    {code: "kumamoto", name: "熊本県"}, {code: "oita", name: "大分県"}, {code: "miyazaki", name: "宮崎県"},
+    {code: "kagoshima", name: "鹿児島県"}, {code: "okinawa", name: "沖縄県"}
+  ];
+
+  // JSON配置パス（GitHub Pagesのdataフォルダ想定）
+  const BASE_URL = "./data/";
+
+  // YouTubeライブカメラ切替用（時間帯と地域コードでURL決定）
+  // 簡易版：東京・大阪・北海道のみ。必要なら増やせます。
+  const LIVE_CAM_LIST = {
+    tokyo: [
+      {start: 6, end: 18, url: "https://www.youtube.com/embed/live_stream?channel=UCRjJSe4qHVqz2H3o7vV1TqA"}, //日中
+      {start: 18, end: 24, url: "https://www.youtube.com/embed/live_stream?channel=UCRjJSe4qHVqz2H3o7vV1TqA"}, //夜間同じ
+      {start: 0, end: 6, url: "https://www.youtube.com/embed/live_stream?channel=UCRjJSe4qHVqz2H3o7vV1TqA"}   //深夜同じ
+    ],
+    osaka: [
+      {start: 6, end: 18, url: "https://www.youtube.com/embed/live_stream?channel=UC-HwNTA_O5O3g6gl76Mv3Xg"},
+      {start: 18, end: 24, url: "https://www.youtube.com/embed/live_stream?channel=UC-HwNTA_O5O3g6gl76Mv3Xg"},
+      {start: 0, end: 6, url: "https://www.youtube.com/embed/live_stream?channel=UC-HwNTA_O5O3g6gl76Mv3Xg"}
+    ],
+    hokkaido: [
+      {start: 6, end: 18, url: "https://www.youtube.com/embed/live_stream?channel=UCo2Aq09rW10hF7SYKq1N5tQ"},
+      {start: 18, end: 24, url: "https://www.youtube.com/embed/live_stream?channel=UCo2Aq09rW10hF7SYKq1N5tQ"},
+      {start: 0, end: 6, url: "https://www.youtube.com/embed/live_stream?channel=UCo2Aq09rW10hF7SYKq1N5tQ"}
+    ]
+  };
+
+  // 画面要素参照
+  const regionSelect = document.getElementById("region-select");
+  const advisorComment = document.getElementById("advisor-comment");
+  const speakBtn = document.getElementById("speak-btn");
+  const alertList = document.getElementById("alert-list");
+  const radarImg = document.getElementById("radar-img");
+  const radarDirection = document.getElementById("radar-direction");
+  const livecamIframe = document.getElementById("livecam-iframe");
+  const chatInput = document.getElementById("chat-input");
+  const chatSend = document.getElementById("chat-send");
+  const aiResponse = document.getElementById("ai-response");
+
+  // チャート用キャンバス
+  const ctxTemp = document.getElementById("chart-temp").getContext("2d");
+  let tempChart;
+
+  // 状態保持
+  let advisorData = {};
+  let alertsData = {};
+  let radarData = {};
+  let observationData = {};
+
+  // 初期処理
+  function init() {
+    // 都道府県選択肢生成
+    for (const pref of PREFS) {
+      const option = document.createElement("option");
+      option.value = pref.code;
+      option.textContent = pref.name;
+      regionSelect.appendChild(option);
+    }
+
+    // 保存地域があればセット、なければ東京
+    const savedRegion = localStorage.getItem("climaguard_region") || "tokyo";
+    regionSelect.value = savedRegion;
+
+    loadAllData(savedRegion);
+
+    // イベント登録
+    regionSelect.addEventListener("change", (e) => {
+      const val = e.target.value;
+      localStorage.setItem("climaguard_region", val);
+      loadAllData(val);
+    });
+
+    speakBtn.addEventListener("click", () => {
+      if (!advisorComment.textContent || advisorComment.textContent === "読み込み中...") return;
+      speakText(advisorComment.textContent);
+    });
+
+    chatSend.addEventListener("click", sendChatQuery);
+    chatInput.addEventListener("keypress", (e) => {
+      if (e.key === "Enter") sendChatQuery();
+    });
+  }
+
+  // すべてのデータを一括ロード
+  async function loadAllData(region) {
+    advisorComment.textContent = "読み込み中...";
+    alertList.innerHTML = '<li>読み込み中...</li>';
+    radarImg.src = "";
+    radarDirection.textContent = "読み込み中...";
+    aiResponse.textContent = "";
+    chatInput.value = "";
+
+    try {
+      [advisorData, alertsData, radarData, observationData] = await Promise.all([
+        fetchJSON(`advisor_${region}.json`),
+        fetchJSON(`alerts.json`),
+        fetchJSON(`radarDirection.json`
