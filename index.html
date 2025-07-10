@@ -278,4 +278,104 @@
     if (!res.ok) throw new Error(`Failed to fetch ${url}`);
     return await res.json();
   }
+
+  // UI更新関数
+  function updateUI(region) {
+    // 防災アドバイス表示
+    if(advisorData.comment){
+      advisorComment.textContent = advisorData.comment;
+    } else {
+      advisorComment.textContent = "本日の防災アドバイスはありません。";
+    }
+
+    // 警報・注意報リスト更新
+    if(alertsData.alerts && alertsData.alerts.length > 0){
+      alertList.innerHTML = "";
+      alertsData.alerts.forEach(alert => {
+        const li = document.createElement("li");
+        li.innerHTML = `<span class="alert-icon">⚠️</span>${alert.level}：${alert.message}`;
+        alertList.appendChild(li);
+      });
+    } else {
+      alertList.innerHTML = "<li>現在発表中の警報・注意報はありません。</li>";
+    }
+
+    // 雨雲レーダー画像
+    if(radarData.imageUrl){
+      radarImg.src = radarData.imageUrl;
+      radarImg.alt = radarData.description || "最新の雨雲レーダー画像";
+    } else {
+      radarImg.src = "";
+      radarImg.alt = "雨雲レーダー画像なし";
+    }
+    // レーダー進行方向テキスト
+    radarDirection.textContent = radarData.direction ? `雨雲の進行方向：${radarData.direction}` : "";
+
+    // ライブカメラ切替
+    updateLiveCam(region);
+
+    // 気象観測データグラフ更新
+    if(observationData && observationData.temperatures && observationData.temperatures.length > 0){
+      updateTempChart(observationData.temperatures);
+    } else {
+      clearTempChart();
+    }
+  }
+
+  // ライブカメラ切替処理
+  function updateLiveCam(region) {
+    const cams = LIVE_CAM_LIST[region] || LIVE_CAM_LIST["tokyo"];
+    const hour = new Date().getHours();
+    const cam = cams.find(c => hour >= c.start && hour < c.end) || cams[0];
+    livecamIframe.src = cam.url;
+  }
+
+  // 気温チャート描画・更新
+  function updateTempChart(data) {
+    if(tempChart) {
+      tempChart.data.labels = data.map(d => d.time);
+      tempChart.data.datasets[0].data = data.map(d => d.value);
+      tempChart.update();
+      return;
+    }
+    tempChart = new Chart(ctxTemp, {
+      type: 'line',
+      data: {
+        labels: data.map(d => d.time),
+        datasets: [{
+          label: '気温(℃)',
+          data: data.map(d => d.value),
+          borderColor: '#0366d6',
+          backgroundColor: 'rgba(3,102,214,0.3)',
+          fill: true,
+          tension: 0.3,
+          pointRadius: 3,
+          pointHoverRadius: 6,
+          borderWidth: 2,
+        }]
+      },
+      options: {
+        responsive: true,
+        scales: {
+          y: {
+            beginAtZero: false,
+            suggestedMin: Math.min(...data.map(d => d.value)) - 5,
+            suggestedMax: Math.max(...data.map(d => d.value)) + 5
+          }
+        },
+        plugins: {
+          legend: { display: true },
+          tooltip: { enabled: true }
+        }
+      }
+    });
+  }
+
+  // 気温チャートクリア
+  function clearTempChart() {
+    if(tempChart) {
+      tempChart.destroy();
+      tempChart = null;
+    }
+  }
 </script>
