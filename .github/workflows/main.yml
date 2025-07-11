@@ -27,7 +27,7 @@ jobs:
     - name: Commit and push updated data
       run: |
         git config --local user.email "miikun2024@outlook.jp"
-        git config --local user.name "GitHub Action"
+        git config --local user.name "maigotaisakuservice-spport-of-pcking"
         git add data/
         git commit -m "Update weather JSON data"
         git push
